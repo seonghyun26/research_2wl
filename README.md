@@ -50,7 +50,7 @@ To reproduce results of Local 2-WL models on USAir using a designated gpu, you c
 ```
 python 2WLtest.py --dataset USAir --pattern 2wl_l --device $gpu-id
 ```
-The other three models are used by command `--patterns 2wl`, `--patterns 2fwl`, `--patterns 2fwl_l`. You may also use `--device -1` to run code on a CPU.
+The other three models are used by command `--pattern 2wl`, `--pattern 2fwl`, `--pattern 2fwl_l`. You may also use `--device -1` to run code on a CPU.
 
 To tune hyperparameters yourself, you can use the command:
 ```

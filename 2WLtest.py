@@ -14,6 +14,10 @@ import yaml
 import warnings
 warnings.filterwarnings("ignore")
 
+import wandb
+from datetime import datetime
+
+TESTNUM = 9
 
 def set_seed(seed: int):
     random.seed(seed)
@@ -35,7 +39,7 @@ def evaluate_hits(pos_pred, neg_pred, K):
 
     return results
 
-def testparam(device="cpu", dsname="Celegans"):  # mod_params=(32, 2, 1, 0.0), lr=3e-4
+def testparam(device="cpu", dsname="Celegans", subgraph="path"):  # mod_params=(32, 2, 1, 0.0), lr=3e-4
     device = torch.device(device)
     bg = load_dataset(dsname, args.pattern)
     bg.to(device)
@@ -64,9 +68,9 @@ def testparam(device="cpu", dsname="Celegans"):  # mod_params=(32, 2, 1, 0.0), l
         elif args.pattern == '2wl_l':
             mod = LocalWLNet(max_degree, use_node_attr, trn_ds.na, **kwargs).to(device)
         elif args.pattern == '2fwl':
-            mod = FWLNet(max_degree, use_node_attr, trn_ds.na, **kwargs).to(device)
+            mod = FWLNet(max_degree, use_node_attr, trn_ds.na, subgraph=subgraph, **kwargs).to(device)
         elif args.pattern == '2fwl_l':
-            mod = LocalFWLNet(max_degree, use_node_attr, trn_ds.na, **kwargs).to(device)
+            mod = LocalFWLNet(max_degree, use_node_attr, trn_ds.na, subgraph=subgraph, **kwargs).to(device)
         opt = Adam(mod.parameters(), lr=lr)
         return train.train_routine(args.dataset, mod, opt, trn_ds, val_ds, tst_ds, epoch, verbose=True)
 
@@ -87,12 +91,36 @@ if __name__ == "__main__":
     parser.add_argument('--test', action="store_true")
     parser.add_argument('--check', action="store_true")
     parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--subgraph', type=str, default="path")
+    # path, cycle, incoming, outgoing
+    
     args = parser.parse_args()
     if args.device < 0:
         args.device = "cpu"
     else:
         args.device = "cuda:" + str(args.device)
     print(args.device)
+    started = datetime.now()
     for i in range(10):
+        run = wandb.init(
+            project = "2wl",
+            entity = "eddy26",
+            resume = False,
+            name = args.pattern + "_" + args.dataset + "_test" + str(TESTNUM) + "_seed"+str(i),
+            job_type = "eval",
+            config = {
+                # NOTE: HERE
+                # "subgraph": args.subgraph,
+                "pattern": args.pattern,
+                "seed": args.seed,
+                "i": i,
+                "started": started,
+                "dataset": args.dataset
+            }
+        )
         set_seed(i + args.seed)
-        testparam(args.device, args.dataset)
+        print(f"<<--- {i}th seed {i+args.seed} Test Start --->>")
+        testparam(args.device, args.dataset, args.subgraph)
+        print(f"<<--- {i}th seed {i+args.seed} Test Done  --->>\n")
+        run.finish()
+        

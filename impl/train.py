@@ -6,6 +6,9 @@ from torch_geometric.utils import negative_sampling, add_self_loops
 from model import LocalWLNet
 import time
 
+import wandb
+
+
 def train(mod, opt, dataset, batch_size, i):
     mod.train()
     global perm1, perm2, pos_batchsize, neg_batchsize
@@ -13,19 +16,26 @@ def train(mod, opt, dataset, batch_size, i):
         pos_batchsize = batch_size // 2
         neg_batchsize = batch_size // 2
         perm1 = torch.randperm(dataset.ei.shape[1] // 2, device=dataset.x.device)
-        perm2 = torch.randperm((dataset.pos1.shape[0] - dataset.ei.shape[1]) // 2,
-                               device=dataset.x.device)
+        perm2 = torch.randperm(
+            (dataset.pos1.shape[0] - dataset.ei.shape[1]) // 2, device=dataset.x.device
+        )
 
-    idx1 = perm1[i * pos_batchsize:(i + 1) * pos_batchsize]
-    idx2 = perm2[i * neg_batchsize:(i + 1) * neg_batchsize]
-    y = torch.cat((torch.ones_like(idx1, dtype=torch.float),
-                   torch.zeros_like(idx2, dtype=torch.float)),
-                  dim=0).unsqueeze(-1)
+    idx1 = perm1[i * pos_batchsize : (i + 1) * pos_batchsize]
+    idx2 = perm2[i * neg_batchsize : (i + 1) * neg_batchsize]
+    y = torch.cat(
+        (
+            torch.ones_like(idx1, dtype=torch.float),
+            torch.zeros_like(idx2, dtype=torch.float),
+        ),
+        dim=0,
+    ).unsqueeze(-1)
 
     idx1 = double(idx1, for_index=True)
     idx2 = double(idx2, for_index=True) + dataset.ei.shape[1]
 
-    ei_new, x_new, ei2_new = sample_block(idx1, dataset.x.shape[0], dataset.ei, dataset.ei2)
+    ei_new, x_new, ei2_new = sample_block(
+        idx1, dataset.x.shape[0], dataset.ei, dataset.ei2
+    )
     pos2 = torch.cat((idx1, idx2), dim=0)
     opt.zero_grad()
     if isinstance(mod, LocalWLNet):
@@ -34,11 +44,15 @@ def train(mod, opt, dataset, batch_size, i):
         pred_pos = dataset.pos1[idx1][:, 0].reshape(-1, 2)
         if mod.use_feat:
             edge_index, _ = add_self_loops(dataset.ei)
-            pred_neg = negative_sampling(
-                dataset.ei,
-                num_nodes=dataset.x.shape[0],
-                num_neg_samples=neg_batchsize,
-            ).t().to(dataset.x.device)
+            pred_neg = (
+                negative_sampling(
+                    dataset.ei,
+                    num_nodes=dataset.x.shape[0],
+                    num_neg_samples=neg_batchsize,
+                )
+                .t()
+                .to(dataset.x.device)
+            )
         else:
             pred_neg = dataset.pos1[idx2][:, 0].reshape(-1, 2)
         pred_links = torch.cat([pred_pos, pred_neg], 0)
@@ -63,24 +77,32 @@ def test(mod, dataset, test=False):
             dataset.x,
             dataset.ei,
             dataset.pos1,
-            dataset.ei.shape[1] + torch.arange(dataset.y.shape[0], device=dataset.x.device),
+            dataset.ei.shape[1]
+            + torch.arange(dataset.y.shape[0], device=dataset.x.device),
             dataset.ei2,
-            True)
+            True,
+        )
     else:
-        pred_links = dataset.pos1[dataset.ei.shape[1] + torch.arange(dataset.y.shape[0], device=dataset.x.device)][:,0].reshape(-1,2)
-        pred = mod(
-            dataset.x,
-            dataset.ei,
-            pred_links,
-            dataset.ei2,
-            True)
+        pred_links = dataset.pos1[
+            dataset.ei.shape[1]
+            + torch.arange(dataset.y.shape[0], device=dataset.x.device)
+        ][:, 0].reshape(-1, 2)
+        pred = mod(dataset.x, dataset.ei, pred_links, dataset.ei2, True)
     sig = pred.sigmoid().cpu()
-    mask = torch.cat(
-        [torch.ones([1, sig.shape[0]], dtype=bool), torch.zeros([1, sig.shape[0]], dtype=bool)]).t().reshape(
-        -1, 1)
+    mask = (
+        torch.cat(
+            [
+                torch.ones([1, sig.shape[0]], dtype=bool),
+                torch.zeros([1, sig.shape[0]], dtype=bool),
+            ]
+        )
+        .t()
+        .reshape(-1, 1)
+    )
 
     result = roc_auc_score(dataset.y[mask].squeeze().cpu().numpy(), sig)
     return result
+
 
 def train_routine(dsname, mod, opt, trn_ds, val_ds, tst_ds, epoch, verbose=False):
     def vprint(*args, **kwargs):
@@ -96,15 +118,18 @@ def train_routine(dsname, mod, opt, trn_ds, val_ds, tst_ds, epoch, verbose=False
     best_val = 0
     tst_score = 0
     early_stop = 0
-    early_stop_thd = 800
+    early_stop_thd = 1600
     for i in range(epoch):
         train_idx = 0
         t0 = time.time()
         loss, trn_score, train_idx = train(mod, opt, trn_ds, batch_size, train_idx)
         t1 = time.time()
         val_score = test(mod, val_ds)
-        vprint(f"epoch: {i:03d}, trn: time {t1 - t0:.2f} s, loss {loss:.4f}, trn {trn_score:.4f}, val {val_score:.4f}",
-               end=" ")
+        wandb.log({"loss": loss, "trn": trn_score, "val": val_score})
+        if i % 100 == 0:
+            vprint(
+                f"epoch: {i:03d}, trn: time {t1 - t0:.2f} s, loss {loss:.4f}, trn {trn_score:.4f}, val {val_score:.4f}\n"
+            )
         early_stop += 1
         if val_score > best_val:
             early_stop = 0
@@ -113,15 +138,22 @@ def train_routine(dsname, mod, opt, trn_ds, val_ds, tst_ds, epoch, verbose=False
                 t0 = time.time()
                 tst_score = test(mod, tst_ds, True)
                 t1 = time.time()
-                #vprint(f"time:{t1-t0:.4f}")
-            vprint(f"tst {tst_score:.4f}")
-        else:
-            vprint()
+                # vprint(f"time:{t1-t0:.4f}")
+            # vprint(f"tst {tst_score:.4f}")
+        # else:
+        # vprint()
         if early_stop > early_stop_thd:
             break
     vprint(f"end test {tst_score:.3f}")
     if verbose:
-        with open(f'./records/{dsname}_auc_record.txt', 'a') as f:
-            f.write('AUC:' + str(round(tst_score, 4)) + '   ' + 'Time:' + str(
-                    round(t1 - t0, 4)) + '   ' + '\n')
+        with open(f"./records/{dsname}_auc_record.txt", "a") as f:
+            f.write(
+                "AUC:"
+                + str(round(tst_score, 4))
+                + "   "
+                + "Time:"
+                + str(round(t1 - t0, 4))
+                + "   "
+                + "\n"
+            )
     return best_val

@@ -2,7 +2,7 @@ act: false
 dp1: 0.1
 dp2: 0.2
 dp3: 0.4
-epoch: 1500
+epoch: 3000
 hidden_dim_1: 24
 hidden_dim_2: 16
 layer1: 1

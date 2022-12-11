@@ -115,3 +115,13 @@ AUC:0.9789   Time:0.0136
 AUC:0.9799   Time:0.0147   
 AUC:0.9871   Time:0.0146   
 AUC:0.977   Time:0.0156   
+AUC:0.9661   Time:0.3981   
+AUC:0.9644   Time:0.3605   
+AUC:0.961   Time:0.27   
+AUC:0.9722   Time:0.3377   
+AUC:0.9616   Time:0.338   
+AUC:0.9615   Time:0.3418   
+AUC:0.9569   Time:0.34   
+AUC:0.9617   Time:0.2696   
+AUC:0.9575   Time:0.3386   
+AUC:0.9658   Time:0.3357   

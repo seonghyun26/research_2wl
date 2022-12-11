@@ -156,4 +156,6 @@ def train_routine(dsname, mod, opt, trn_ds, val_ds, tst_ds, epoch, verbose=False
                 + "   "
                 + "\n"
             )
+        # wandb.run.summary["test score"] = round(tst_score, 4)s
+
     return best_val

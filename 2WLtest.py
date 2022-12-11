@@ -64,7 +64,7 @@ def testparam(device="cpu", dsname="Celegans", subgraph="path"):  # mod_params=(
         lr = kwargs.pop('lr')
         epoch = kwargs.pop('epoch')
         if args.pattern == '2wl':
-            mod = WLNet(max_degree, use_node_attr, trn_ds.na, **kwargs).to(device)
+            mod = WLNet(max_degree, use_node_attr, trn_ds.na, subgraph=subgraph, **kwargs).to(device)
         elif args.pattern == '2wl_l':
             mod = LocalWLNet(max_degree, use_node_attr, trn_ds.na, **kwargs).to(device)
         elif args.pattern == '2fwl':
@@ -91,7 +91,8 @@ if __name__ == "__main__":
     parser.add_argument('--test', action="store_true")
     parser.add_argument('--check', action="store_true")
     parser.add_argument('--seed', type=int, default=0)
-    parser.add_argument('--subgraph', type=str, default="path")
+    parser.add_argument('--subgraph', type=str, default="original")
+    parser.add_argument('--name', type=str, default='2wl_test')
     # path, cycle, incoming, outgoing
     
     args = parser.parse_args()
@@ -106,11 +107,11 @@ if __name__ == "__main__":
             project = "2wl",
             entity = "eddy26",
             resume = False,
-            name = args.pattern + "_" + args.dataset + "_test" + str(TESTNUM) + "_seed"+str(i),
+            name = args.name + "-" + str(i),
             job_type = "eval",
             config = {
                 # NOTE: HERE
-                # "subgraph": args.subgraph,
+                "subgraph": args.subgraph,
                 "pattern": args.pattern,
                 "seed": args.seed,
                 "i": i,

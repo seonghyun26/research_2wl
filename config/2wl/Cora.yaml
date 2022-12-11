@@ -10,7 +10,7 @@ dp2: 0.1
 dp3: 0.3
 epoch: 4000
 hidden_dim_1: 64
-hidden_dim_2: 32
+hidden_dim_2: 16
 layer1: 2
 layer2: 1
 layer3: 1
@@ -19,4 +19,4 @@ ln1: false
 ln2: false
 ln3: true
 ln4: true
-lr: 0.001
+lr: 0.005

@@ -33,11 +33,13 @@ class WLNet(torch.nn.Module):
         act2=False,
         act3=True,
         act4=True,
+        subgraph="original",
     ):
         super(WLNet, self).__init__()
 
         self.use_feat = use_feat
         self.feat = feat
+        self.subgraph = subgraph
         use_affine = False
 
         relu_lin = lambda a, b, dp, lnx, actx: Seq(
@@ -93,7 +95,11 @@ class WLNet(torch.nn.Module):
         self.g_1 = Seq(
             [
                 relu_lin(
-                    hidden_dim_2 * 2 + input_edge_size + 1, hidden_dim_2, dp3, ln4, act4
+                    hidden_dim_2 * 2 + input_edge_size + 1,
+                    hidden_dim_2,
+                    dp3,
+                    ln4,
+                    act4,
                 )
             ]
             + [
@@ -128,13 +134,20 @@ class WLNet(torch.nn.Module):
         x = rowx * colx
         x = x.reshape(n, n, -1)
 
+        # eim: adjacency matrix
         eim = torch.zeros((n * n,), device=x.device)
         eim[edge_index[0] * n + edge_index[1]] = 1
         eim = eim.reshape(n, n, 1)
 
+        # NOTE: k-hop neighbor adjacency matrix
+        adj = eim.squeeze()
+        hopNeighbor = torch.matrix_power(adj, 2)
+        # hopNeighbor += torch.matrix_power(adj, 2) +torch.matrix_power(adj, 4)
+        # print(twoHopNeighbor)
+
         x = torch.cat((x, eim), dim=-1)
 
-        x = mataggr(x, self.h_1, self.g_1)
+        x = mataggr(x, self.h_1, self.g_1, hopNeighbor, self.subgraph)
         x = (x * x.permute(1, 0, 2)).reshape(n * n, -1)
         x = x[pos[:, 0] * n + pos[:, 1]]
         x = self.lin_dir(x)
@@ -309,11 +322,11 @@ class FWLNet(nn.Module):
             nn.Linear(a, b), nn.Dropout(p=dp, inplace=True), nn.ReLU(inplace=True)
         )
         self.mlps_1 = nn.ModuleList(
-            [relu_lin(input_edge_size + 1, hidden_dim_2, dp3)]
+            [relu_lin(input_edge_size + 3, hidden_dim_2, dp3)]
             + [relu_lin(hidden_dim_2, hidden_dim_2, dp3) for i in range(layer2 - 1)]
         )
         self.mlps_2 = nn.ModuleList(
-            [relu_lin(input_edge_size + 1, hidden_dim_2, dp3)]
+            [relu_lin(input_edge_size + 3, hidden_dim_2, dp3)]
             + [relu_lin(hidden_dim_2, hidden_dim_2, dp3) for i in range(layer2 - 1)]
         )
         relu_norm_lin = lambda a, b, dp: nn.Sequential(
@@ -323,7 +336,7 @@ class FWLNet(nn.Module):
             nn.ReLU(inplace=True),
         )
         self.mlps_3 = nn.ModuleList(
-            [relu_norm_lin(hidden_dim_2 + input_edge_size + 1, hidden_dim_2, dp3)]
+            [relu_norm_lin(hidden_dim_2 + input_edge_size + 3, hidden_dim_2, dp3)]
             + [
                 relu_norm_lin(hidden_dim_2 * 2, hidden_dim_2, dp3)
                 for i in range(layer2 - 1)
@@ -369,7 +382,7 @@ class FWLNet(nn.Module):
         for i in range(self.layer2):
             # xx = deepcopy(x)
 
-            if self.subgraph == "path":
+            if self.subgraph == "path" or self.subgraph == "original":
                 # print("Path")
                 x1 = self.mlps_1[i](x).permute(2, 0, 1)
                 x2 = self.mlps_2[i](x).permute(2, 0, 1)
@@ -973,15 +986,33 @@ class Seq(nn.Module):
         return out
 
 
-def mataggr(A, h, g):
+def mataggr(A, h, g, adj, subgraph):
     """
     A (n, n, d). n is number of node, d is latent dimension
     h, g are mlp
     """
     B = h(A)
     # C = f(A)
-    n, d = A.shape[0], A.shape[1]
-    vec_p = (torch.sum(B, dim=1, keepdim=True)).expand(-1, n, -1)
-    vec_q = (torch.sum(B, dim=0, keepdim=True)).expand(n, -1, -1)
-    D = torch.cat([A, vec_p, vec_q], -1)
+    n, d = A.shape[0], B.shape[2]
+
+    if subgraph == "original":
+        # NOTE: Original Code
+        vec_p = (torch.sum(B, dim=1, keepdim=True)).expand(-1, n, -1)
+        vec_q = (torch.sum(B, dim=0, keepdim=True)).expand(n, -1, -1)
+        D = torch.cat([A, vec_p, vec_q], -1)
+    else:
+        # NOTE: new code, sum k-hop neighbors using adj
+        mask = adj > 0
+        mask = mask.unsqueeze(2)
+        mask = mask.expand(-1, -1, B.shape[2])
+        vec_p = (torch.sum(B * mask, dim=1, keepdim=True)).expand(-1, n, -1)
+        vec_q = (torch.sum(B * mask, dim=0, keepdim=True)).expand(n, -1, -1)
+        # mask2 = torch.matrix_power(adj, 2) > 0
+        # mask2 = mask2.unsqueeze(2)
+        # mask2 = mask2.expand(-1, -1, B.shape[2])
+        # vec_r = (torch.sum(B * mask2, dim=1, keepdim=True)).expand(-1, n, -1)
+        # vec_s = (torch.sum(B * mask2, dim=0, keepdim=True)).expand(n, -1, -1)
+        D = torch.cat([A, vec_p, vec_q], -1)
+        # D = torch.cat([A, vec_p, vec_q, vec_r, vec_s], -1)
+
     return g(D)

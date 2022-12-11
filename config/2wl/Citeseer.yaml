@@ -9,8 +9,8 @@ dp1: 0.1
 dp2: 0.0
 dp3: 0.0
 epoch: 4000
-hidden_dim_1: 64
-hidden_dim_2: 24
+hidden_dim_1: 48
+hidden_dim_2: 18
 layer1: 2
 layer2: 1
 layer3: 2

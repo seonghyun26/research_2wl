@@ -1,23 +1,23 @@
-PATTERN="2fwl"
+PATTERN="2fwl_l"
 # 2wl, 2wl_l, 2fwl, 2fwl_l
 
-DATASET="Citeseer"
+DATASET="Cora"
 # Cora, Citeseer, Pubmed
 # ogbl-ddi ?
 
-SEED=60
+SEED=0
+
+python 2WLtest.py \
+  --pattern $PATTERN \
+  --dataset $DATASET \
+  --device 1 \
+  --seed $SEED \
+  --subgraph "original"
 
 # python 2WLtest.py \
 #   --pattern $PATTERN \
 #   --dataset $DATASET \
-#   --device 2 \
-#   --seed $SEED \
-#   --subgraph path
-
-# python 2WLtest.py \
-#   --pattern $PATTERN \
-#   --dataset $DATASET \
-#   --device 1 \
+#   --device 0 \
 #   --seed $SEED \
 #   --subgraph cycle
 
@@ -35,9 +35,9 @@ SEED=60
 #   --seed $SEED \
 #   --subgraph outgoing
 
-python 2WLtest.py \
-  --pattern $PATTERN \
-  --dataset $DATASET \
-  --device 3 \
-  --seed $SEED \
-  --subgraph alpha
+# python 2WLtest.py \
+#   --pattern $PATTERN \
+#   --dataset $DATASET \
+#   --device 3 \
+#   --seed $SEED \
+#   --subgraph alpha
